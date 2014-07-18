@@ -5,7 +5,7 @@ Reports Kafka metrics to Librato.
 # Usage
 
 * Add jar to Kafka's lib directory
-* Add the following to Kafa's server.properties
+* Add the following to Kafka's server.properties
 
 ```
 kafka.metrics.reporters=io.tilde.kafka.metrics.KafkaLibratoReporter
