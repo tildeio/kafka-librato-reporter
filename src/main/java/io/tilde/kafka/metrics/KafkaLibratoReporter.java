@@ -1,5 +1,8 @@
 package io.tilde.kafka.metrics;
 
+import com.yammer.metrics.core.*;
+import java.io.*;
+
 import com.librato.metrics.LibratoReporter;
 import kafka.metrics.KafkaMetricsReporter;
 import kafka.utils.VerifiableProperties;
@@ -8,6 +11,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static com.librato.metrics.LibratoReporter.ExpandedMetric;
@@ -32,6 +37,7 @@ public class KafkaLibratoReporter
       props.getString("librato.agent.identifier"))
     ;
 
+
     Set<ExpandedMetric> metrics = new HashSet<ExpandedMetric>();
     maybeEnableMetric(props, metrics, MEDIAN, true);
     maybeEnableMetric(props, metrics, PCT_75, false);
@@ -46,10 +52,26 @@ public class KafkaLibratoReporter
     maybeEnableMetric(props, metrics, RATE_5_MINUTE, false);
     maybeEnableMetric(props, metrics, RATE_15_MINUTE, false);
 
+    final List<String> metricsWhiteList = Arrays.asList(props.getString("librato.kafka.metrics.whitelist", ".*").split("\\s*,\\s*"));
+    LOG.info("metricsWhiteList: " + metricsWhiteList);
+
     libratoReporterBuilder
       .setTimeout(props.getInt("librato.timeout", 20), TimeUnit.SECONDS)
       .setReportVmMetrics(false)
       .setExpansionConfig(new MetricExpansionConfig(metrics))
+      .setPredicate(new MetricPredicate() {
+        @Override
+        public boolean matches(final MetricName name, final Metric metric) {
+          for (String s : metricsWhiteList) {
+            if (name.getName().matches(s)) {
+              LOG.debug("matched! pattern: " + s + " metric name: " + name.getName());
+              return true;
+            }
+          }
+          LOG.debug(name.getName() + " found no matches on whitelist");
+          return false;
+        }
+      })
     ;
 
     if (props.getBoolean("librato.kafka.enable", true)) {
@@ -80,7 +102,6 @@ public class KafkaLibratoReporter
     }
 
     if (libratoReporter == null) {
-      LOG.info("starting Librato metrics reporter");
       libratoReporter = libratoReporterBuilder.build();
       libratoReporter.start(interval, TimeUnit.SECONDS);
     }
